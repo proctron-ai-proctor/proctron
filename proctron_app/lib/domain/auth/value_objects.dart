@@ -1,6 +1,5 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:proctron_app/domain/core/failures.dart';
 import 'package:dartz/dartz.dart';
+import 'package:proctron_app/domain/core/failures.dart';
 import 'package:proctron_app/domain/core/value_object.dart';
 import 'package:proctron_app/domain/core/value_validators.dart';
 

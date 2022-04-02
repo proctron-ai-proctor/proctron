@@ -7,10 +7,15 @@ part 'entities.freezed.dart';
 class User with _$User {
   static const usernameKey = 'username';
   static const emailKey = 'emailAddress';
+  static const tokenKey = 'token';
+  static const tokenExpirationTimeKey = 'tokenExpirationTime';
 
   const factory User({
     required Username username,
     required EmailAddress emailAddress,
+    required String token,
+    required DateTime tokenExpirationTime,
+    required String otpVerificationPayload,
   }) = _User;
 
   const User._();

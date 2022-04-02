@@ -1,28 +1,33 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer';
 import 'dart:io';
 
 import 'package:dartz/dartz.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:injectable/injectable.dart';
 
 import 'package:proctron_app/domain/auth/auth_failures.dart';
-import 'package:proctron_app/domain/auth/entities.dart';
 import 'package:proctron_app/domain/auth/i_auth_facade.dart';
+import 'package:proctron_app/domain/auth/otp_failures.dart';
 import 'package:proctron_app/domain/auth/value_objects.dart';
+import 'package:proctron_app/domain/user/entities.dart';
 import 'package:proctron_app/infrastructure/auth/auth_dtos.dart';
+import 'package:proctron_app/infrastructure/core/address_module.dart';
 import 'package:proctron_app/injection.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 @LazySingleton(as: IAuthFacade)
 class ProctronAuthFacade implements IAuthFacade {
-  final _authUrl = "10.0.2.2:3000";
+  final _authUrl =
+      getIt.get<Address>(instanceName: Address.keyExamServer).toString();
   final _registerEndpoint = "users/register";
   final _loginEndpoint = "users/login";
+  final _otpVerificationEndpoint = "users/verify-otp";
+  final _resendOtpEndpoint = "users/resend-otp";
 
   @override
-  Future<Either<AuthFailure, Unit>> registerWithCredentials({
+  Future<Either<AuthFailure, User>> registerWithCredentials({
     required Username username,
     required EmailAddress emailAddress,
     required Password password,
@@ -44,17 +49,22 @@ class ProctronAuthFacade implements IAuthFacade {
         body: registerDto.toJson(),
       );
       final registerResponseDto = RegisterResponseDto.fromJson(
-          jsonDecode(response.body) as Map<String, dynamic>);
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
 
       switch (response.statusCode) {
         // 200
         case HttpStatus.ok:
-          final user = User(
+          final respMessageDto = SuccessfulRegisterResponseMessageDto.fromJson(
+            registerResponseDto.message as Map<String, dynamic>,
+          );
+          return right(User(
             username: username,
             emailAddress: emailAddress,
-          );
-          saveSession(user);
-          return right(unit);
+            token: '',
+            tokenExpirationTime: DateTime.now(),
+            otpVerificationPayload: respMessageDto.payload,
+          ));
         // 409
         case HttpStatus.conflict:
           return left(const AuthFailure.emailAlreadyRegistered());
@@ -63,9 +73,8 @@ class ProctronAuthFacade implements IAuthFacade {
           return left(const AuthFailure.serverError());
 
         default:
-          log(
-            "Unkown status code was received during user registration.",
-            name: "ProctronAuthFacade.StatusCodeUnknown",
+          debugPrint(
+            'Unkown status code was received during user registration: ${response.statusCode}',
           );
           return left(const AuthFailure.unknownError());
       }
@@ -74,22 +83,20 @@ class ProctronAuthFacade implements IAuthFacade {
     } on SocketException {
       return left(const AuthFailure.connectionError());
     } catch (e) {
-      log(
+      debugPrint(
         "Exception during user registration: $e",
-        name: "ProctronAuthFacade.Unkown",
       );
       return left(const AuthFailure.unknownError());
     }
   }
 
   @override
-  Future<Either<AuthFailure, Unit>> loginWithEmailAndPassword({
+  Future<Either<AuthFailure, User>> loginWithEmailAndPassword({
     required EmailAddress emailAddress,
     required Password password,
   }) async {
     final emailStr = emailAddress.getOrCrash();
     final passwordStr = password.getOrCrash();
-
     try {
       final loginUrl = Uri.http(_authUrl, _loginEndpoint);
       final loginDto = LoginDto(
@@ -102,19 +109,23 @@ class ProctronAuthFacade implements IAuthFacade {
         body: loginDto.toJson(),
       );
       final loginResponseDto = LoginResponseDto.fromJson(
-          jsonDecode(response.body) as Map<String, dynamic>);
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
 
       switch (response.statusCode) {
         // 200
         case HttpStatus.ok:
           final respMessageDto = SuccessfulLoginResponseMessageDto.fromJson(
-              loginResponseDto.message as Map<String, dynamic>);
+            loginResponseDto.message as Map<String, dynamic>,
+          );
           final user = User(
             username: Username(respMessageDto.name),
             emailAddress: EmailAddress(respMessageDto.email),
+            token: respMessageDto.token,
+            tokenExpirationTime: DateTime.now().add(const Duration(days: 1)),
+            otpVerificationPayload: '',
           );
-          saveSession(user);
-          return right(unit);
+          return right(user);
         // 401
         case HttpStatus.unauthorized:
         // 404
@@ -125,39 +136,126 @@ class ProctronAuthFacade implements IAuthFacade {
           return left(const AuthFailure.serverError());
 
         default:
-          log(
-            "Unkown status code was received during user login.",
-            name: "ProctronAuthFacade.StatusCodeUnknown",
+          debugPrint(
+            "Unkown status code was received during user login: ${response.statusCode}",
           );
           return left(const AuthFailure.unknownError());
       }
-    } on TimeoutException {
+    } on TimeoutException catch (e) {
+      debugPrint(e.toString());
       return left(const AuthFailure.connectionError());
     } on SocketException catch (e) {
-      print(e);
+      debugPrint(e.toString());
       return left(const AuthFailure.connectionError());
     } catch (e) {
-      log(
+      debugPrint(
         "Exception during user login: $e",
-        name: "ProctronAuthFacade.Unkown",
       );
       return left(const AuthFailure.unknownError());
     }
   }
 
   @override
-  Future<Option<User>> getLoggedInUser() async {
-    final prefs = await getIt.getAsync<SharedPreferences>();
-
-    if (prefs.containsKey(User.usernameKey) &&
-        prefs.containsKey(User.emailKey)) {
-      final user = User(
-        username: Username(prefs.getString(User.usernameKey) ?? ''),
-        emailAddress: EmailAddress(prefs.getString(User.usernameKey) ?? ''),
+  Future<Either<OtpFailure, Unit>> resendOtp({
+    required String payload,
+    required Function(String) onResend,
+  }) async {
+    try {
+      final resendOtpUrl = Uri.http(_authUrl, _resendOtpEndpoint);
+      final verifyOtpDto = ResendOtpDto(
+        payload: payload,
       );
-      return some(user);
-    } else {
-      return none();
+
+      final response = await http.post(
+        resendOtpUrl,
+        body: verifyOtpDto.toJson(),
+      );
+      final resendOtpResponseDto = ResendOtpResponseDto.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+
+      switch (response.statusCode) {
+        case HttpStatus.ok:
+          final respMessageDto = SuccessfulResendOtpResponseMessageDto.fromJson(
+            resendOtpResponseDto.message as Map<String, dynamic>,
+          );
+          onResend(respMessageDto.payload);
+          return right(unit);
+        case HttpStatus.internalServerError:
+          return left(const OtpFailure.serverError());
+        default:
+          debugPrint(
+            "Unkown status code was received during otp verification: ${response.statusCode}",
+          );
+          return left(const OtpFailure.unknownError());
+      }
+    } on TimeoutException catch (e) {
+      debugPrint(e.toString());
+      return left(const OtpFailure.connectionError());
+    } on SocketException catch (e) {
+      debugPrint(e.toString());
+      return left(const OtpFailure.connectionError());
+    } catch (e) {
+      debugPrint(
+        "Exception during otp verification: $e",
+      );
+      return left(const OtpFailure.unknownError());
+    }
+  }
+
+  @override
+  Future<Either<OtpFailure, Unit>> verifyOtp({
+    required String email,
+    required String otp,
+    required String payload,
+  }) async {
+    try {
+      final otpVerificationUrl = Uri.http(_authUrl, _otpVerificationEndpoint);
+      final verifyOtpDto = VerifyOtpDto(
+        email: email,
+        otp: otp,
+        payload: payload,
+      );
+
+      final response = await http.post(
+        otpVerificationUrl,
+        body: verifyOtpDto.toJson(),
+      );
+      final verifyOtpResponseDto = VerifyOtpResponseDto.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+
+      switch (response.statusCode) {
+        case HttpStatus.ok:
+          return right(unit);
+        case HttpStatus.badRequest:
+          if ((verifyOtpResponseDto.message as String)
+                  .toLowerCase()
+                  .compareTo('otp expired') ==
+              0) {
+            return left(const OtpFailure.otpExpired());
+          } else {
+            return left(const OtpFailure.invalidOtp());
+          }
+        case HttpStatus.internalServerError:
+          return left(const OtpFailure.serverError());
+        default:
+          debugPrint(
+            "Unkown status code was received during otp verification: ${response.statusCode}",
+          );
+          return left(const OtpFailure.unknownError());
+      }
+    } on TimeoutException catch (e) {
+      debugPrint(e.toString());
+      return left(const OtpFailure.connectionError());
+    } on SocketException catch (e) {
+      debugPrint(e.toString());
+      return left(const OtpFailure.connectionError());
+    } catch (e) {
+      debugPrint(
+        "Exception during otp verification: $e",
+      );
+      return left(const OtpFailure.unknownError());
     }
   }
 
@@ -167,12 +265,7 @@ class ProctronAuthFacade implements IAuthFacade {
 
     prefs.remove(User.usernameKey);
     prefs.remove(User.emailKey);
-  }
-
-  Future<void> saveSession(User user) async {
-    final prefs = await getIt.getAsync<SharedPreferences>();
-
-    prefs.setString(User.usernameKey, user.username.getOrCrash());
-    prefs.setString(User.emailKey, user.emailAddress.getOrCrash());
+    prefs.remove(User.tokenKey);
+    prefs.remove(User.tokenExpirationTimeKey);
   }
 }

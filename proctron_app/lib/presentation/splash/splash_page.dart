@@ -1,4 +1,3 @@
-import 'package:another_flushbar/flushbar_helper.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,20 +17,29 @@ class SplashPage extends StatelessWidget {
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           state.map(
-            initial: (_) => {},
-            authenticated: (_) => FlushbarHelper.createInformation(
-              message: 'Authenticated successfully!',
-            )..show(context),
+            initial: (_) => null,
+            loading: (_) => null,
+            authenticated: (_) => null,
             unauthenticated: (_) {
-              AutoRouter.of(context).push(const AuthRoute());
+              AutoRouter.of(context).replace(const AuthRoute());
             },
           );
         },
         child: Center(
-          child: TextButton(
-            onPressed: () => BlocProvider.of<AuthBloc>(context)
-                .add(const AuthEvent.signedOut()),
-            child: const Text('Signout'),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () =>
+                    AutoRouter.of(context).replace(const ExamTakingRoute()),
+                child: const Text('Take exam'),
+              ),
+              TextButton(
+                onPressed: () => BlocProvider.of<AuthBloc>(context)
+                    .add(const AuthEvent.signedOut()),
+                child: const Text('Signout'),
+              ),
+            ],
           ),
         ),
       ),

@@ -32,10 +32,77 @@ class LoginDto with _$LoginDto {
 }
 
 @freezed
+class ResendOtpDto with _$ResendOtpDto {
+  const factory ResendOtpDto({
+    required String payload,
+  }) = _ResendOtpDto;
+
+  const ResendOtpDto._();
+
+  factory ResendOtpDto.fromJson(Map<String, dynamic> json) =>
+      _$ResendOtpDtoFromJson(json);
+}
+
+@freezed
+class ResendOtpResponseDto with _$ResendOtpResponseDto {
+  const factory ResendOtpResponseDto({
+    required bool auth,
+    required dynamic message,
+  }) = _ResendOtpResponseDto;
+
+  const ResendOtpResponseDto._();
+
+  factory ResendOtpResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$ResendOtpResponseDtoFromJson(json);
+}
+
+@freezed
+class SuccessfulResendOtpResponseMessageDto
+    with _$SuccessfulResendOtpResponseMessageDto {
+  const factory SuccessfulResendOtpResponseMessageDto({
+    required String info,
+    required String payload,
+  }) = _SuccessfulResendOtpResponseMessageDto;
+
+  const SuccessfulResendOtpResponseMessageDto._();
+
+  factory SuccessfulResendOtpResponseMessageDto.fromJson(
+          Map<String, dynamic> json) =>
+      _$SuccessfulResendOtpResponseMessageDtoFromJson(json);
+}
+
+@freezed
+class VerifyOtpDto with _$VerifyOtpDto {
+  const factory VerifyOtpDto({
+    required String email,
+    required String otp,
+    required String payload,
+  }) = _VerifyOtpDto;
+
+  const VerifyOtpDto._();
+
+  factory VerifyOtpDto.fromJson(Map<String, dynamic> json) =>
+      _$VerifyOtpDtoFromJson(json);
+}
+
+@freezed
+class VerifyOtpResponseDto with _$VerifyOtpResponseDto {
+  const factory VerifyOtpResponseDto({
+    required bool auth,
+    required dynamic message,
+  }) = _VerifyOtpResponseDto;
+
+  const VerifyOtpResponseDto._();
+
+  factory VerifyOtpResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$VerifyOtpResponseDtoFromJson(json);
+}
+
+@freezed
 class RegisterResponseDto with _$RegisterResponseDto {
   const factory RegisterResponseDto({
     required bool auth,
-    required String message,
+    required dynamic message,
   }) = _RegisterResponseDto;
 
   const RegisterResponseDto._();
@@ -45,11 +112,27 @@ class RegisterResponseDto with _$RegisterResponseDto {
 }
 
 @freezed
+class SuccessfulRegisterResponseMessageDto
+    with _$SuccessfulRegisterResponseMessageDto {
+  const factory SuccessfulRegisterResponseMessageDto({
+    required String info,
+    required String payload,
+  }) = _SuccessfulRegisterResponseMessageDto;
+
+  const SuccessfulRegisterResponseMessageDto._();
+
+  factory SuccessfulRegisterResponseMessageDto.fromJson(
+          Map<String, dynamic> json) =>
+      _$SuccessfulRegisterResponseMessageDtoFromJson(json);
+}
+
+@freezed
 class SuccessfulLoginResponseMessageDto
     with _$SuccessfulLoginResponseMessageDto {
   const factory SuccessfulLoginResponseMessageDto({
     required String name,
     required String email,
+    required String token,
   }) = _SuccessfulLoginResponseMessageDto;
 
   const SuccessfulLoginResponseMessageDto._();

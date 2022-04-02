@@ -1,11 +1,16 @@
+import 'dart:developer';
+
 import 'package:dartz/dartz.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:injectable/injectable.dart';
 
 import 'package:proctron_app/domain/auth/auth_failures.dart';
+import 'package:proctron_app/domain/user/entities.dart';
 import 'package:proctron_app/domain/auth/i_auth_facade.dart';
 import 'package:proctron_app/domain/auth/value_objects.dart';
+import 'package:proctron_app/domain/user/i_user_repository.dart';
+import 'package:proctron_app/injection.dart';
 
 part 'auth_form_bloc.freezed.dart';
 part 'auth_form_event.dart';
@@ -14,8 +19,10 @@ part 'auth_form_state.dart';
 @injectable
 class AuthFormBloc extends Bloc<AuthFormEvent, AuthFormState> {
   final IAuthFacade _authFacade;
+  final IUserRepository _userRepository;
 
-  AuthFormBloc(this._authFacade) : super(AuthFormState.initial()) {
+  AuthFormBloc(this._authFacade, this._userRepository)
+      : super(AuthFormState.initial()) {
     on<AuthFormEvent>(
       (event, emit) => event.map(
         usernameChanged: (e) => emit(
@@ -58,12 +65,12 @@ class AuthFormBloc extends Bloc<AuthFormEvent, AuthFormState> {
     final emailIsValid = state.emailAddress.isValid();
     final passwordIsValid = state.password.isValid();
 
-    Either<AuthFailure, Unit>? authFailureOrSuccess;
+    Either<AuthFailure, User>? authFailureOrSuccess;
 
     if (emailIsValid && passwordIsValid) {
       emit(
         state.copyWith(
-          isSubmitting: true,
+          isLoading: true,
           authFailureOrSuccessOption: none(),
         ),
       );
@@ -72,11 +79,15 @@ class AuthFormBloc extends Bloc<AuthFormEvent, AuthFormState> {
         emailAddress: state.emailAddress,
         password: state.password,
       );
+
+      authFailureOrSuccess.fold((_) => null, (user) {
+        _userRepository.saveSession(user);
+      });
     }
 
     emit(
       state.copyWith(
-        isSubmitting: false,
+        isLoading: false,
         showErrorMessages: true,
         authFailureOrSuccessOption: optionOf(authFailureOrSuccess),
       ),
@@ -84,17 +95,18 @@ class AuthFormBloc extends Bloc<AuthFormEvent, AuthFormState> {
   }
 
   Future<void> _performAuthFacadeRegistration(
-      Emitter<AuthFormState> emit) async {
+    Emitter<AuthFormState> emit,
+  ) async {
     final usernameIsValid = state.username.isValid();
     final emailIsValid = state.emailAddress.isValid();
     final passwordIsValid = state.password.isValid();
 
-    Either<AuthFailure, Unit>? authFailureOrSuccess;
+    Either<AuthFailure, User>? authFailureOrSuccess;
 
     if (usernameIsValid && emailIsValid && passwordIsValid) {
       emit(
         state.copyWith(
-          isSubmitting: true,
+          isLoading: true,
           authFailureOrSuccessOption: none(),
         ),
       );
@@ -104,11 +116,15 @@ class AuthFormBloc extends Bloc<AuthFormEvent, AuthFormState> {
         emailAddress: state.emailAddress,
         password: state.password,
       );
+
+      authFailureOrSuccess.fold((_) => null, (user) {
+        _userRepository.saveUnverifiedUserDetails(user);
+      });
     }
 
     emit(
       state.copyWith(
-        isSubmitting: false,
+        isLoading: false,
         showErrorMessages: true,
         authFailureOrSuccessOption: optionOf(authFailureOrSuccess),
       ),

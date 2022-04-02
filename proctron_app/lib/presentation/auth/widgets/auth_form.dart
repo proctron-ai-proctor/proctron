@@ -1,7 +1,10 @@
 import 'package:another_flushbar/flushbar_helper.dart';
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:proctron_app/application/auth/auth_form/auth_form_bloc.dart';
+import 'package:proctron_app/presentation/core/persistent_loading_wheel.dart';
+import 'package:proctron_app/presentation/routes/app_router.dart';
 
 class AuthForm extends StatelessWidget {
   const AuthForm({Key? key}) : super(key: key);
@@ -10,30 +13,8 @@ class AuthForm extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocConsumer<AuthFormBloc, AuthFormState>(
       listener: (context, state) {
-        if (state.isSubmitting) {
-          showDialog(
-            barrierDismissible: false,
-            context: context,
-            builder: (context) {
-              return Center(
-                child: Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.all(20),
-                  child: FittedBox(
-                    fit: BoxFit.fitHeight,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 20),
-                        Text('Working on it..'),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
+        if (state.isLoading) {
+          pShowPersistentLoadingWheel(context);
         }
 
         state.authFailureOrSuccessOption.fold(
@@ -41,9 +22,7 @@ class AuthForm extends StatelessWidget {
           (either) => either.fold(
             (failure) {
               // popping the loading dialog if it is open
-              if (!(ModalRoute.of(context)?.isCurrent ?? false)) {
-                Navigator.of(context).pop();
-              }
+              pPopLoadingWheel(context);
 
               FlushbarHelper.createError(
                 message: failure.map(
@@ -65,13 +44,17 @@ class AuthForm extends StatelessWidget {
             (_) {
               // TODO: Implement navigation on successful auth
               // popping the loading dialog if it is open
-              if (!(ModalRoute.of(context)?.isCurrent ?? false)) {
-                Navigator.of(context).pop();
-              }
+              pPopLoadingWheel(context);
 
               FlushbarHelper.createInformation(
                 message: 'Authenticated successfully!',
               ).show(context);
+
+              if (state.isLoginMode) {
+                AutoRouter.of(context).replace(const SplashRoute());
+              } else {
+                AutoRouter.of(context).replace(const EmailVerificationRoute());
+              }
             },
           ),
         );
@@ -113,70 +96,72 @@ class AuthFormFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthFormBloc, AuthFormState>(builder: (context, state) {
-      final bloc = BlocProvider.of<AuthFormBloc>(context);
+    return BlocBuilder<AuthFormBloc, AuthFormState>(
+      builder: (context, state) {
+        final bloc = BlocProvider.of<AuthFormBloc>(context);
 
-      return Column(
-        children: [
-          if (bloc.state.isLoginMode)
-            Container()
-          else
+        return Column(
+          children: [
+            if (bloc.state.isLoginMode)
+              Container()
+            else
+              TextFormField(
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.person),
+                  labelText: 'Username',
+                ),
+                autocorrect: false,
+                initialValue: bloc.state.username.value.getOrElse(() => ''),
+                onChanged: (value) => bloc.add(
+                  AuthFormEvent.usernameChanged(value),
+                ),
+                validator: (_) => bloc.state.username.value.fold(
+                  (f) => f.maybeMap(
+                    invalidUsername: (_) => 'Invalid username',
+                    orElse: () => null,
+                  ),
+                  (_) => null,
+                ),
+              ),
             TextFormField(
               decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.person),
-                labelText: 'Username',
+                prefixIcon: Icon(Icons.email),
+                labelText: 'Email',
               ),
               autocorrect: false,
-              initialValue: bloc.state.username.value.getOrElse(() => ''),
               onChanged: (value) => bloc.add(
-                AuthFormEvent.usernameChanged(value),
+                AuthFormEvent.emailAddressChanged(value),
               ),
-              validator: (_) => bloc.state.username.value.fold(
+              validator: (_) => bloc.state.emailAddress.value.fold(
                 (f) => f.maybeMap(
-                  invalidUsername: (_) => 'Invalid username',
+                  invalidEmail: (_) => 'Invalid email',
                   orElse: () => null,
                 ),
                 (_) => null,
               ),
             ),
-          TextFormField(
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.email),
-              labelText: 'Email',
-            ),
-            autocorrect: false,
-            onChanged: (value) => bloc.add(
-              AuthFormEvent.emailAddressChanged(value),
-            ),
-            validator: (_) => bloc.state.emailAddress.value.fold(
-              (f) => f.maybeMap(
-                invalidEmail: (_) => 'Invalid email',
-                orElse: () => null,
+            TextFormField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.password),
+                labelText: 'Password',
               ),
-              (_) => null,
-            ),
-          ),
-          TextFormField(
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.password),
-              labelText: 'Password',
-            ),
-            autocorrect: false,
-            obscureText: true,
-            onChanged: (value) => bloc.add(
-              AuthFormEvent.passwordChanged(value),
-            ),
-            validator: (_) => bloc.state.password.value.fold(
-              (f) => f.maybeMap(
-                invalidPassword: (_) => 'Invalid password',
-                orElse: () => null,
+              autocorrect: false,
+              obscureText: true,
+              onChanged: (value) => bloc.add(
+                AuthFormEvent.passwordChanged(value),
               ),
-              (_) => null,
+              validator: (_) => bloc.state.password.value.fold(
+                (f) => f.maybeMap(
+                  invalidPassword: (_) => 'Invalid password',
+                  orElse: () => null,
+                ),
+                (_) => null,
+              ),
             ),
-          ),
-        ],
-      );
-    });
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -187,50 +172,52 @@ class AuthFormActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthFormBloc, AuthFormState>(builder: (context, state) {
-      final bloc = BlocProvider.of<AuthFormBloc>(context);
+    return BlocBuilder<AuthFormBloc, AuthFormState>(
+      builder: (context, state) {
+        final bloc = BlocProvider.of<AuthFormBloc>(context);
 
-      return Column(
-        children: [
-          TextButton(
-            onPressed: () {
-              FocusManager.instance.primaryFocus?.unfocus();
-              if (bloc.state.isLoginMode) {
-                bloc.add(const AuthFormEvent.loginPressed());
-              } else {
-                bloc.add(const AuthFormEvent.registerPressed());
-              }
-            },
-            child: const Text("Submit"),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () {
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    bloc.add(
-                      const AuthFormEvent.switchToLoginPressed(),
-                    );
-                  },
-                  child: const Text("LOGIN"),
+        return Column(
+          children: [
+            TextButton(
+              onPressed: () {
+                FocusManager.instance.primaryFocus?.unfocus();
+                if (bloc.state.isLoginMode) {
+                  bloc.add(const AuthFormEvent.loginPressed());
+                } else {
+                  bloc.add(const AuthFormEvent.registerPressed());
+                }
+              },
+              child: const Text("Submit"),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      bloc.add(
+                        const AuthFormEvent.switchToLoginPressed(),
+                      );
+                    },
+                    child: const Text("LOGIN"),
+                  ),
                 ),
-              ),
-              Expanded(
-                child: TextButton(
-                  onPressed: () {
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    bloc.add(
-                      const AuthFormEvent.switchToRegisterPressed(),
-                    );
-                  },
-                  child: const Text("REGISTER"),
+                Expanded(
+                  child: TextButton(
+                    onPressed: () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      bloc.add(
+                        const AuthFormEvent.switchToRegisterPressed(),
+                      );
+                    },
+                    child: const Text("REGISTER"),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
-      );
-    });
+              ],
+            ),
+          ],
+        );
+      },
+    );
   }
 }
