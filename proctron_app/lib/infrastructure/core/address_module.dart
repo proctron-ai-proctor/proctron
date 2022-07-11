@@ -3,9 +3,9 @@ import 'package:injectable/injectable.dart';
 @module
 abstract class AddressModule {
   @Named(Address.keyExamSocket)
-  Address get examSocketAddress => Address('192.168.1.3', '3000');
+  Address get examSocketAddress => Address('192.168.43.229', '3000');
   @Named(Address.keyExamServer)
-  Address get examServerAddress => Address('192.168.1.3', '3000');
+  Address get examServerAddress => Address('192.168.43.229', '3000');
 }
 
 class Address {

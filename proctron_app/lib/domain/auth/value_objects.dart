@@ -35,3 +35,5 @@ class Username extends ValueObject<String> {
 
   const Username._(this.value);
 }
+
+enum Role { examinee, examiner }

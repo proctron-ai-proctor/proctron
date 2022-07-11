@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:proctron_app/application/auth/auth_bloc.dart';
+import 'package:proctron_app/application/splash/splash_bloc.dart';
 import 'package:proctron_app/injection.dart';
 import 'package:proctron_app/presentation/routes/app_router.dart';
 
@@ -17,11 +18,15 @@ class AppWidget extends StatelessWidget {
           create: (context) =>
               getIt<AuthBloc>()..add(const AuthEvent.authCheckRequested()),
         ),
+        BlocProvider(
+          create: (context) =>
+              getIt<SplashBloc>()..add(const SplashEvent.userRequested()),
+        ),
       ],
       child: MaterialApp.router(
         title: 'Proctron',
         theme: ThemeData(
-          primarySwatch: Colors.blue,
+          primarySwatch: Colors.indigo,
         ),
         routerDelegate: _appRouter.delegate(),
         routeInformationParser: _appRouter.defaultRouteParser(),

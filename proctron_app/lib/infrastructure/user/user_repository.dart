@@ -20,7 +20,8 @@ class UserRepository implements IUserRepository {
         prefs.containsKey(User.tokenExpirationTimeKey)) {
       final user = User(
         username: Username(prefs.getString(User.usernameKey) ?? ''),
-        emailAddress: EmailAddress(prefs.getString(User.usernameKey) ?? ''),
+        emailAddress: EmailAddress(prefs.getString(User.emailKey) ?? ''),
+        role: Role.values[prefs.getInt(User.roleKey) ?? 0],
         token: prefs.getString(User.tokenKey) ?? '',
         tokenExpirationTime: DateTime.parse(
           prefs.getString(User.tokenExpirationTimeKey) ?? '',
@@ -49,6 +50,7 @@ class UserRepository implements IUserRepository {
 
     prefs.setString(User.usernameKey, user.username.getOrCrash());
     prefs.setString(User.emailKey, user.emailAddress.getOrCrash());
+    prefs.setInt(User.roleKey, user.role.index);
     prefs.setString(User.tokenKey, user.token);
     prefs.setString(
       User.tokenExpirationTimeKey,

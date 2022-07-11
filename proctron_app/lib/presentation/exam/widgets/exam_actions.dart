@@ -14,33 +14,17 @@ class ExamActions extends StatelessWidget {
 
     return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextButton(
-              onPressed: () => examTakingBloc.add(
-                const ExamTakingEvent.openMediaPressed(),
-              ),
-              child: const Text('Open camera & mic'),
-            ),
-            TextButton(
-              onPressed: () => examTakingBloc.add(
-                const ExamTakingEvent.createRoomPressed(),
-              ),
-              child: const Text('Create room'),
-            ),
-          ],
+        TextButton(
+          onPressed: () => examTakingBloc.add(
+            const ExamTakingEvent.startPressed(),
+          ),
+          child: const Text('Start'),
         ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextButton(
-              onPressed: () => examTakingBloc.add(
-                const ExamTakingEvent.exitPressed(),
-              ),
-              child: const Text('Exit'),
-            ),
-          ],
+        TextButton(
+          onPressed: () => examTakingBloc.add(
+            const ExamTakingEvent.exitPressed(),
+          ),
+          child: const Text('Exit'),
         )
       ],
     );

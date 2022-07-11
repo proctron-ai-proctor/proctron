@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:proctron_app/application/auth/auth_bloc.dart';
 import 'package:proctron_app/application/exam/bloc/exam_taking_bloc.dart';
+import 'package:proctron_app/domain/exam/entities.dart';
 import 'package:proctron_app/injection.dart';
 import 'package:proctron_app/presentation/core/persistent_loading_wheel.dart';
 import 'package:proctron_app/presentation/exam/widgets/camera_widget.dart';
 import 'package:proctron_app/presentation/exam/widgets/exam_actions.dart';
+import 'package:proctron_app/presentation/exam/widgets/exam_sheet.dart';
 import 'package:proctron_app/presentation/routes/app_router.dart';
 
 class ExamTakingPage extends StatelessWidget {
@@ -16,7 +18,7 @@ class ExamTakingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Splash'),
+        title: const Text('Exam'),
       ),
       resizeToAvoidBottomInset: true,
       body: BlocProvider<ExamTakingBloc>(
@@ -55,6 +57,7 @@ class ExamTakingPage extends StatelessWidget {
             child: Column(
               children: const [
                 CameraWidget(),
+                Expanded(child: ExamSheet()),
                 ExamActions(),
               ],
             ),

@@ -9,6 +9,7 @@ abstract class IAuthFacade {
     required Username username,
     required EmailAddress emailAddress,
     required Password password,
+    required Role role,
   });
 
   Future<Either<AuthFailure, User>> loginWithEmailAndPassword({

@@ -18,17 +18,44 @@ class Signaling implements ISignaling {
         'urls': [
           'stun:stun1.l.google.com:19302',
           'stun:stun2.l.google.com:19302'
-        ]
-      }
+        ],
+      },
+      {
+        'urls': 'turn:openrelay.metered.ca:80',
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+      {
+        'urls': 'turn:openrelay.metered.ca:80?transport=tcp',
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+      {
+        'urls': 'turn:openrelay.metered.ca:443',
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+      {
+        'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
     ]
   };
 
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   MediaStream? _remoteStream;
-  List<RTCIceCandidate> _remoteIceCandidates = [];
   StreamStateCallback? _onAddRemoteStream;
   Socket? _socket;
+
+  final Map<String, dynamic> _constraints = {
+    'mandatory': {
+      'OfferToReceiveAudio': false,
+      'OfferToReceiveVideo': false,
+    },
+    'optional': [],
+  };
 
   @override
   void setSocket(Socket socket) {
@@ -38,70 +65,12 @@ class Signaling implements ISignaling {
   @override
   Future<void> createRoom() async {
     debugPrint('Creating peer connection with config:\n$configuration');
-
     _peerConnection = await createPeerConnection(configuration);
     _registerPeerConnectionListeners();
-
-    _localStream?.getTracks().forEach((track) {
-      debugPrint('adding local stream track');
-      _peerConnection?.addTrack(track, _localStream!);
-      _drainRemoteIce();
-    });
-
-    _peerConnection?.onIceCandidate = (iceCandidate) {
-      _socket?.emit('exam/credentials', {
-        'ice': {
-          'candidate': iceCandidate.candidate,
-          'sdpMid': iceCandidate.sdpMid,
-          'sdpMLineIndex': iceCandidate.sdpMLineIndex,
-        }
-      });
-    };
-
-    final offer = await _peerConnection!.createOffer();
-    _peerConnection!.setLocalDescription(offer);
-    debugPrint('Offer created');
-    _socket?.emit(
-      'exam/credentials',
-      {'sdp': offer.toMap()},
-    );
-
-    _peerConnection?.onTrack = (remoteTrack) {
-      // TODO: do something with remote track
-    };
-
-    _socket?.on('credentials', (creds) async {
-      final credsDto = WrtcCredsDto.fromJson(creds as Map<String, dynamic>);
-      if (credsDto.sdp.isNotEmpty) {
-        final sdpDto = WrtcSdpDto.fromJson(credsDto.sdp);
-        debugPrint('Answer received');
-        await _peerConnection?.setRemoteDescription(
-          RTCSessionDescription(
-            sdpDto.sdp,
-            sdpDto.type,
-          ),
-        );
-
-        if (sdpDto.type == 'offer') {
-          final answer = await _peerConnection!.createAnswer();
-          await _peerConnection?.setLocalDescription(answer);
-          _socket?.emit(
-            'exam/credentials',
-            {'sdp': (await _peerConnection!.getLocalDescription())?.toMap()},
-          );
-        }
-      } else if (credsDto.ice.isNotEmpty) {
-        final iceDto = WrtcIceDto.fromJson(credsDto.ice);
-        _remoteIceCandidates.add(
-          RTCIceCandidate(
-            iceDto.candidate,
-            iceDto.sdpMid,
-            iceDto.sdpMLineIndex,
-          ),
-        );
-        _drainRemoteIce();
-      }
-    });
+    _registerLocalIceListener();
+    _addLocalStreamTracks();
+    _registerRemoteIceAndAnswerListener();
+    await _createAndSendOffer();
   }
 
   @override
@@ -109,8 +78,15 @@ class Signaling implements ISignaling {
     RTCVideoRenderer localVideo,
     RTCVideoRenderer remoteVideo,
   ) async {
-    final stream = await navigator.mediaDevices
-        .getUserMedia({'video': true, 'audio': true});
+    final stream = await navigator.mediaDevices.getUserMedia({
+      'audio': true,
+      'video': true,
+    });
+
+    // If not disabled, feedback loop occurs in audio on some devices
+    stream.getAudioTracks().forEach((track) {
+      track.enableSpeakerphone(false);
+    });
 
     await localVideo.initialize().then((value) {
       localVideo.srcObject = stream;
@@ -122,30 +98,18 @@ class Signaling implements ISignaling {
 
   @override
   Future<void> hangUp(RTCVideoRenderer localVideo) async {
-    final tracks = localVideo.srcObject?.getAudioTracks();
-    for (final track in tracks ?? <MediaStreamTrack>[]) {
-      track.stop();
-    }
-
-    if (_remoteStream != null) {
-      _remoteStream!.getTracks().forEach((track) => track.stop());
-    }
+    _localStream?.getTracks().forEach((track) => track.stop());
+    // _remoteStream?.getTracks().forEach((track) => track.stop());
 
     if (_peerConnection != null) {
-      _peerConnection!.close();
+      _peerConnection?.close();
+      _socket?.emit('exam/stop');
     }
 
     _localStream?.dispose();
     _remoteStream?.dispose();
     _socket?.disconnect();
     _socket?.close();
-  }
-
-  void _drainRemoteIce() async {
-    for (final iceCandidate in _remoteIceCandidates) {
-      await _peerConnection!.addCandidate(iceCandidate);
-    }
-    _remoteIceCandidates = [];
   }
 
   void _registerPeerConnectionListeners() {
@@ -170,5 +134,59 @@ class Signaling implements ISignaling {
       _onAddRemoteStream?.call(stream);
       _remoteStream = stream;
     };
+  }
+
+  void _registerLocalIceListener() {
+    _peerConnection?.onIceCandidate = (iceCandidate) {
+      _socket?.emit('exam/credentials', {
+        'ice': {
+          'candidate': iceCandidate.candidate,
+          'sdpMid': iceCandidate.sdpMid,
+          'sdpMLineIndex': iceCandidate.sdpMLineIndex,
+        }
+      });
+    };
+  }
+
+  void _addLocalStreamTracks() {
+    _localStream?.getTracks().forEach((track) {
+      debugPrint('adding local stream track');
+      _peerConnection?.addTrack(track, _localStream!);
+    });
+  }
+
+  void _registerRemoteIceAndAnswerListener() {
+    _socket?.on('credentials', (creds) async {
+      final credsDto = WrtcCredsDto.fromJson(creds as Map<String, dynamic>);
+      if (credsDto.sdp.isNotEmpty) {
+        final sdpDto = WrtcSdpDto.fromJson(credsDto.sdp);
+        debugPrint('Answer received');
+        await _peerConnection?.setRemoteDescription(
+          RTCSessionDescription(
+            sdpDto.sdp,
+            sdpDto.type,
+          ),
+        );
+      } else if (credsDto.ice.isNotEmpty) {
+        final iceDto = WrtcIceDto.fromJson(credsDto.ice);
+        await _peerConnection?.addCandidate(
+          RTCIceCandidate(
+            iceDto.candidate,
+            iceDto.sdpMid,
+            iceDto.sdpMLineIndex,
+          ),
+        );
+      }
+    });
+  }
+
+  Future<void> _createAndSendOffer() async {
+    final offer = await _peerConnection!.createOffer(_constraints);
+    _peerConnection!.setLocalDescription(offer);
+    debugPrint('Offer created');
+    _socket?.emit(
+      'exam/start',
+      {'offer': offer.toMap()},
+    );
   }
 }

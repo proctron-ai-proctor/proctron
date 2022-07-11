@@ -1,5 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:proctron_app/domain/auth/value_objects.dart';
 
 part 'auth_dtos.freezed.dart';
 part 'auth_dtos.g.dart';
@@ -10,6 +11,7 @@ class RegisterDto with _$RegisterDto {
     required String name,
     required String email,
     required String password,
+    required Role role,
   }) = _RegisterDto;
 
   const RegisterDto._();
@@ -133,6 +135,7 @@ class SuccessfulLoginResponseMessageDto
     required String name,
     required String email,
     required String token,
+    required Role role,
   }) = _SuccessfulLoginResponseMessageDto;
 
   const SuccessfulLoginResponseMessageDto._();

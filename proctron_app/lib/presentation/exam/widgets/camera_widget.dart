@@ -8,38 +8,34 @@ class CameraWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              child: BlocBuilder<ExamTakingBloc, ExamTakingState>(
-                bloc: BlocProvider.of<ExamTakingBloc>(context),
-                builder: (context, state) {
-                  if (state.isMediaReady) {
-                    return Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('Camera:'),
-                        Expanded(
-                          child: RTCVideoView(
-                            state.localRenderer,
-                            mirror: true,
-                          ),
-                        ),
-                      ],
-                    );
-                  } else {
-                    return Container();
-                  }
-                },
-              ),
-            ),
-            // Expanded(child: RTCVideoView(_remoteRenderer)),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          BlocBuilder<ExamTakingBloc, ExamTakingState>(
+            bloc: BlocProvider.of<ExamTakingBloc>(context),
+            builder: (context, state) {
+              if (state.isMediaReady) {
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('Camera:'),
+                    Expanded(
+                      child: RTCVideoView(
+                        state.localRenderer,
+                        mirror: true,
+                      ),
+                    ),
+                  ],
+                );
+              } else {
+                return const Text('Press start to begin..');
+              }
+            },
+          ),
+          // Expanded(child: RTCVideoView(_remoteRenderer)),
+        ],
       ),
     );
   }

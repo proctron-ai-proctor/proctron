@@ -31,6 +31,7 @@ class ProctronAuthFacade implements IAuthFacade {
     required Username username,
     required EmailAddress emailAddress,
     required Password password,
+    required Role role,
   }) async {
     final usernameStr = username.getOrCrash();
     final emailStr = emailAddress.getOrCrash();
@@ -42,8 +43,10 @@ class ProctronAuthFacade implements IAuthFacade {
         name: usernameStr,
         email: emailStr,
         password: passwordStr,
+        role: role,
       );
 
+      debugPrint('url: ${registerUrl.toString()}');
       final response = await http.post(
         registerUrl,
         body: registerDto.toJson(),
@@ -51,7 +54,7 @@ class ProctronAuthFacade implements IAuthFacade {
       final registerResponseDto = RegisterResponseDto.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
       );
-
+      debugPrint('status: ${response.statusCode.toString()}');
       switch (response.statusCode) {
         // 200
         case HttpStatus.ok:
@@ -61,6 +64,7 @@ class ProctronAuthFacade implements IAuthFacade {
           return right(User(
             username: username,
             emailAddress: emailAddress,
+            role: role,
             token: '',
             tokenExpirationTime: DateTime.now(),
             otpVerificationPayload: respMessageDto.payload,
@@ -79,8 +83,10 @@ class ProctronAuthFacade implements IAuthFacade {
           return left(const AuthFailure.unknownError());
       }
     } on TimeoutException {
+      debugPrint('timed out');
       return left(const AuthFailure.connectionError());
     } on SocketException {
+      debugPrint('socket exception');
       return left(const AuthFailure.connectionError());
     } catch (e) {
       debugPrint(
@@ -111,7 +117,7 @@ class ProctronAuthFacade implements IAuthFacade {
       final loginResponseDto = LoginResponseDto.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
       );
-
+      debugPrint('status: ${response.statusCode.toString()}');
       switch (response.statusCode) {
         // 200
         case HttpStatus.ok:
@@ -121,6 +127,7 @@ class ProctronAuthFacade implements IAuthFacade {
           final user = User(
             username: Username(respMessageDto.name),
             emailAddress: EmailAddress(respMessageDto.email),
+            role: respMessageDto.role,
             token: respMessageDto.token,
             tokenExpirationTime: DateTime.now().add(const Duration(days: 1)),
             otpVerificationPayload: '',

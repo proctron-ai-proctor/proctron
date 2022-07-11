@@ -45,3 +45,18 @@ class WrtcIceDto with _$WrtcIceDto {
   factory WrtcIceDto.fromJson(Map<String, dynamic> json) =>
       _$WrtcIceDtoFromJson(json);
 }
+
+@freezed
+class CreateRoomDto with _$CreateRoomDto {
+  const factory CreateRoomDto({
+    required String allotedTime,
+    required String maxScore,
+    required String formId,
+    required String email,
+  }) = _CreateRoomDto;
+
+  const CreateRoomDto._();
+
+  factory CreateRoomDto.fromJson(Map<String, dynamic> json) =>
+      _$CreateRoomDtoFromJson(json);
+}

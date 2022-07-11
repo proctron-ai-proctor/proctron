@@ -5,6 +5,6 @@ import 'package:proctron_app/presentation/core/app_widget.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  configureInjection(Environment.prod);
+  configureInjection(Environment.dev);
   runApp(AppWidget());
 }

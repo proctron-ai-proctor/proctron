@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
+import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:proctron_app/domain/core/i_signaling.dart';
+import 'package:proctron_app/domain/exam/entities.dart';
 import 'package:proctron_app/domain/user/entities.dart';
 import 'package:proctron_app/domain/user/i_user_repository.dart';
 import 'package:proctron_app/infrastructure/core/address_module.dart';
@@ -29,12 +31,12 @@ class ExamTakingBloc extends Bloc<ExamTakingEvent, ExamTakingState> {
     on<ExamTakingEvent>(
       (event, emit) => event.map(
         opened: (_) => _setup(emit),
-        openMediaPressed: (_) => _openMedia(emit),
-        createRoomPressed: (_) => _createRoom(emit),
+        startPressed: (_) => _startExam(emit),
         exitPressed: (_) => _exitExam(emit),
         socketConnected: (_) => _finishInitialSetup(emit),
         socketDisconnected: (_) => _haltExam(emit),
         socketErrorOccurred: (_) => _haltExam(emit),
+        answerChanged: (evt) => _changeAnswer(evt, emit),
       ),
     );
   }
@@ -58,10 +60,85 @@ class ExamTakingBloc extends Bloc<ExamTakingEvent, ExamTakingState> {
       },
     );
 
+    final questions = [
+      const Question(
+        qId: 0,
+        qText: 'What?',
+        qType: QuestionType.short,
+        qAnswer: null,
+        qChoices: [],
+      ),
+      const Question(
+        qId: 1,
+        qText: 'How?',
+        qType: QuestionType.mcq,
+        qAnswer: null,
+        qChoices: [
+          QuestionChoice(slot: 0, text: 'idk'),
+          QuestionChoice(slot: 1, text: 'somehow'),
+          QuestionChoice(slot: 2, text: "i can't"),
+        ],
+      ),
+      const Question(
+        qId: 2,
+        qText: 'Where?',
+        qType: QuestionType.long,
+        qAnswer: null,
+        qChoices: [],
+      ),
+      const Question(
+        qId: 3,
+        qText: 'When?',
+        qType: QuestionType.short,
+        qAnswer: null,
+        qChoices: [],
+      ),
+    ];
+
+    emit(
+      state.copyWith(
+        isInitialSetupDone: true,
+        exam: Exam(
+          id: '0',
+          questions: questions,
+          createdOn: DateTime.now(),
+        ),
+      ),
+    );
+
     // wait until connection
     await _socketController.stream.firstWhere((connected) => connected);
+  }
 
-    emit(state.copyWith(isInitialSetupDone: true));
+  Future<void> _startExam(Emitter<ExamTakingState> emit) async {
+    //  final authUrl =
+    //       getIt.get<Address>(instanceName: Address.keyExamServer).toString();
+    //   final createEndpoint = "examinee/fetch-questions";
+
+    //   final user = (await _userRepository.getLoggedInUser())
+    //       .fold(() => null, (user) => user);
+
+    //   final createUrl = Uri.http(authUrl, createEndpoint);
+    //   print(createUrl);
+    //   final response = await http.post(
+    //     createUrl,
+    //     body: {
+    //       'credentials': '716-650a-6cc'
+    //     },
+    //     headers: {
+    //       'authorization': 'Bearer ${user.token}',
+    //     },
+    //   );
+
+    await _openMedia(emit);
+    await _signaling.openUserMedia(state.localRenderer, state.remoteRenderer);
+    await _signaling.createRoom();
+    debugPrint('socketAddress: $_socketAddress');
+
+    emit(state.copyWith(
+      isMediaReady: true,
+      hasExamStarted: true,
+    ));
   }
 
   Future<void> _openMedia(Emitter<ExamTakingState> emit) async {
@@ -70,8 +147,6 @@ class ExamTakingBloc extends Bloc<ExamTakingEvent, ExamTakingState> {
       state.remoteRenderer,
     );
     debugPrint('media opened!!');
-
-    emit(state.copyWith(isMediaReady: true));
   }
 
   Future<void> _createRoom(Emitter<ExamTakingState> emit) async {
@@ -115,13 +190,15 @@ class ExamTakingBloc extends Bloc<ExamTakingEvent, ExamTakingState> {
     required Function(dynamic) onConnect,
     required Function(dynamic) onDisconnect,
   }) async {
-    debugPrint("trying to connect to socket");
-    debugPrint("USER: ${state.user}");
+    debugPrint('trying to connect to socket');
+    debugPrint('USER: ${state.user}');
+    debugPrint('ADDRESS: $_socketAddress');
 
     final socket = io(
       Uri.http(_socketAddress, '').toString(),
       OptionBuilder()
           .setTransports(['websocket'])
+          .setQuery({'user': state.user?.emailAddress.getOrCrash()})
           .setAuth({
             'token': state.user?.token,
           })
@@ -136,5 +213,20 @@ class ExamTakingBloc extends Bloc<ExamTakingEvent, ExamTakingState> {
     socket.onDisconnect(onDisconnect);
 
     return socket.connected;
+  }
+
+  Future<void> _changeAnswer(
+    AnswerChanged evt,
+    Emitter<ExamTakingState> emit,
+  ) async {
+    final questions = state.exam!.questions;
+    questions[evt.questionIndex] =
+        questions[evt.questionIndex].copyWith(qAnswer: evt.answer);
+    emit(
+      state.copyWith(
+        exam: state.exam!.copyWith(questions: questions),
+      ),
+    );
+    debugPrint(state.exam!.questions.toString());
   }
 }

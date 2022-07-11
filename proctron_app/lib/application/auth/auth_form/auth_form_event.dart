@@ -9,9 +9,13 @@ class AuthFormEvent with _$AuthFormEvent {
       EmailAddressChanged;
   const factory AuthFormEvent.passwordChanged(String passwordStr) =
       PasswordChanged;
+  const factory AuthFormEvent.roleChanged(Role role) = RoleChanged;
   const factory AuthFormEvent.loginPressed() = LoginPressed;
   const factory AuthFormEvent.registerPressed() = RegisterPressed;
   const factory AuthFormEvent.switchToLoginPressed() = SwitchToLoginPressed;
   const factory AuthFormEvent.switchToRegisterPressed() =
       SwitchToRegisterPressed;
+  const factory AuthFormEvent.hostChanged(String host) = HostChanged;
+  const factory AuthFormEvent.portChanged(String port) = PortChanged;
+  const factory AuthFormEvent.setAddressPressed() = SetAddressPressed;
 }
